@@ -25,11 +25,3 @@ cargo build --release
 ```
 
 The executable is at `target/release/pezli-editor`.
-
-## Features
-
-- Modern, theme-consistent UI with locally stored Feather icons
-- Tabs, line numbers, find and replace, undo/redo
-- Open files and folders with a browsable file tree
-- Settings in the editor area: themes, fonts, layout, custom themes
-- Rearrangeable workspace: side bar and panel can move to either side

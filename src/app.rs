@@ -40,28 +40,16 @@ impl PezliApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let settings = Settings::load();
         let mut icons = HashMap::new();
-        let icon_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/icons");
-        if let Ok(entries) = std::fs::read_dir(icon_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.extension().and_then(|value| value.to_str()) != Some("png") {
-                    continue;
-                }
-                let Ok(bytes) = std::fs::read(&path) else { continue };
-                let Ok(decoded) = image::load_from_memory(&bytes) else { continue };
-                let decoded = decoded.to_rgba8();
-                let samples = decoded.as_flat_samples();
-                let image = egui::ColorImage::from_rgba_unmultiplied(
-                    [decoded.width() as usize, decoded.height() as usize],
-                    samples.as_slice(),
-                );
-                let name = path
-                    .file_stem()
-                    .map(|value| value.to_string_lossy().into_owned())
-                    .unwrap_or_default();
-                let texture = cc.egui_ctx.load_texture(name.clone(), image, egui::TextureOptions::LINEAR);
-                icons.insert(name, texture);
-            }
+        for (name, bytes) in crate::icons_data::icon_bytes() {
+            let Ok(decoded) = image::load_from_memory(bytes) else { continue };
+            let decoded = decoded.to_rgba8();
+            let samples = decoded.as_flat_samples();
+            let image = egui::ColorImage::from_rgba_unmultiplied(
+                [decoded.width() as usize, decoded.height() as usize],
+                samples.as_slice(),
+            );
+            let texture = cc.egui_ctx.load_texture(name.to_string(), image, egui::TextureOptions::LINEAR);
+            icons.insert(name.to_string(), texture);
         }
         Self {
             docs: vec![Document::untitled("Untitled-1".to_string())],
@@ -565,7 +553,50 @@ impl PezliApp {
             ui.heading("Settings");
         });
         ui.separator();
-        ui.label("Color theme");
+        match self.settings_section {
+            1 => {
+                ui.heading("Editor");
+                ui.checkbox(&mut self.settings.show_line_numbers, "Show line numbers");
+                ui.checkbox(&mut self.settings.word_wrap, "Word wrap");
+                ui.checkbox(&mut self.settings.insert_spaces, "Insert spaces for Tab");
+                if ui.add(egui::Slider::new(&mut self.settings.font_size, 8.0..=32.0).text("Font size")).changed() {
+                    self.settings_dirty = true;
+                }
+                if ui.add(egui::Slider::new(&mut self.settings.tab_size, 2..=8).text("Tab size")).changed() {
+                    self.settings_dirty = true;
+                }
+            }
+            3 => {
+                ui.heading("Custom themes");
+                self.ui_custom_themes(ui);
+            }
+            4 => {
+                ui.heading("Workspace");
+                self.ui_layout_settings(ui);
+                if ui.button("Open Folder...").clicked() {
+                    self.open_folder();
+                }
+            }
+            2 => {
+                ui.heading("Appearance");
+                self.ui_theme_picker(ui);
+                ui.separator();
+                self.ui_layout_settings(ui);
+            }
+            _ => {
+                ui.heading("General");
+                self.ui_theme_picker(ui);
+                ui.separator();
+                ui.checkbox(&mut self.settings.show_line_numbers, "Show line numbers");
+                ui.checkbox(&mut self.settings.word_wrap, "Word wrap");
+                if ui.add(egui::Slider::new(&mut self.settings.font_size, 8.0..=32.0).text("Font size")).changed() {
+                    self.settings_dirty = true;
+                }
+            }
+        }
+    }
+
+    fn ui_theme_picker(&mut self, ui: &mut egui::Ui) {
         let themes = self.all_themes();
         let current = self.theme();
         egui::ComboBox::from_label("Theme")
@@ -579,18 +610,9 @@ impl PezliApp {
                 }
             });
 
-        ui.separator();
-        ui.checkbox(&mut self.settings.show_line_numbers, "Show line numbers");
-        ui.checkbox(&mut self.settings.word_wrap, "Word wrap");
-        ui.checkbox(&mut self.settings.insert_spaces, "Insert spaces for Tab");
-        if ui.add(egui::Slider::new(&mut self.settings.font_size, 8.0..=32.0).text("Font size")).changed() {
-            self.settings_dirty = true;
-        }
-        if ui.add(egui::Slider::new(&mut self.settings.tab_size, 2..=8).text("Tab size")).changed() {
-            self.settings_dirty = true;
-        }
+    }
 
-        ui.separator();
+    fn ui_layout_settings(&mut self, ui: &mut egui::Ui) {
         ui.label("Workspace layout");
         egui::ComboBox::from_label("Side bar")
             .selected_text(self.settings.side_side.clone())
@@ -614,9 +636,9 @@ impl PezliApp {
                     }
                 }
             });
+    }
 
-        ui.separator();
-        ui.heading("Custom themes");
+    fn ui_custom_themes(&mut self, ui: &mut egui::Ui) {
         if ui.button("Create theme from current").clicked() {
             let mut theme = self.theme();
             let id = format!("custom-{}", std::time::SystemTime::now()
@@ -641,7 +663,7 @@ impl PezliApp {
                 if ui.small_button("Delete").clicked() {
                     self.settings.custom_themes.retain(|item| item.id != theme.id);
                     if self.settings.theme_id == theme.id {
-                        self.settings.theme_id = "light".into();
+                        self.settings.theme_id = "dark+".into();
                     }
                     if self.editing_theme.as_deref() == Some(theme.id.as_str()) {
                         self.editing_theme = None;
@@ -650,7 +672,6 @@ impl PezliApp {
                 }
             });
         }
-
         if let Some(id) = self.editing_theme.clone() {
             if let Some(index) = self.settings.custom_themes.iter().position(|theme| theme.id == id) {
                 ui.separator();

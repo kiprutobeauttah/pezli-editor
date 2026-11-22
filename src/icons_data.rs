@@ -1,0 +1,32 @@
+// Generated from assets/icons — embedded at compile time.
+pub fn icon_bytes() -> Vec<(&'static str, &'static [u8])> {
+    vec![
+        ("alert-triangle", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/alert-triangle.png"))),
+        ("check", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/check.png"))),
+        ("chevron-down", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/chevron-down.png"))),
+        ("chevron-right", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/chevron-right.png"))),
+        ("clipboard", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/clipboard.png"))),
+        ("code", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/code.png"))),
+        ("copy", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/copy.png"))),
+        ("droplet", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/droplet.png"))),
+        ("file", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/file.png"))),
+        ("file-plus", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/file-plus.png"))),
+        ("folder", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/folder.png"))),
+        ("info", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/info.png"))),
+        ("layout", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/layout.png"))),
+        ("log-out", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/log-out.png"))),
+        ("plus", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/plus.png"))),
+        ("refresh-cw", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/refresh-cw.png"))),
+        ("rotate-ccw", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/rotate-ccw.png"))),
+        ("rotate-cw", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/rotate-cw.png"))),
+        ("save", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/save.png"))),
+        ("scissors", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/scissors.png"))),
+        ("search", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/search.png"))),
+        ("settings", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/settings.png"))),
+        ("share-2", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/share-2.png"))),
+        ("user", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/user.png"))),
+        ("x", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/x.png"))),
+        ("zoom-in", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/zoom-in.png"))),
+        ("zoom-out", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/zoom-out.png"))),
+    ]
+}
