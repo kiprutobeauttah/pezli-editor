@@ -1,6 +1,6 @@
 # Build artifacts
-src-tauri/target/
-src-tauri/gen/
+/target/
+/gen/
 
 # OS / editor files
 .DS_Store
