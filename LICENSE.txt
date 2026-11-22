@@ -1,0 +1,58 @@
+Pezli Inc. — Proprietary Software License Agreement
+Version: 1.0.0
+Effective Date: September 22, 2025
+
+Copyright (c) 2025 Pezli Inc. All rights reserved.
+
+IMPORTANT: This software is licensed, not sold. Use of this product is governed by the
+terms below. By installing, copying, or otherwise using this software, you agree to
+the terms of this License Agreement.
+
+1. GRANT OF LICENSE
+Pezli Inc. ("Pezli") grants you (the "Licensee") a limited, non-exclusive,
+non-transferable, revocable license to install and use the Software for lawful purposes.
+This license does not transfer ownership of the Software or intellectual property rights.
+
+2. RESTRICTIONS
+You must NOT:
+- Modify, edit, adapt, or create derivative works of the Software.
+- Reverse engineer, decompile, disassemble, or attempt to obtain source code.
+- Distribute, sublicense, rent, lease, sell, or otherwise transfer the Software to others.
+- Remove or obscure any proprietary notices, labels, or marks in the Software.
+- Use the Software for illegal, harmful, or malicious purposes (including but not limited
+  to malware creation, hacking tools, or unlawful surveillance).
+
+3. OWNERSHIP
+All rights, title, and interest in the Software remain with Pezli Inc. and its licensors.
+This license does not grant you any ownership rights.
+
+4. TERMINATION
+This Agreement is effective until terminated. Pezli may terminate your rights immediately
+if you violate any term. Upon termination, you must stop all use and delete all copies
+of the Software.
+
+5. DISCLAIMER
+The Software is provided "AS IS," without warranties of any kind, express or implied.
+Pezli disclaims all warranties, including but not limited to merchantability,
+fitness for a particular purpose, and non-infringement.
+
+6. LIMITATION OF LIABILITY
+In no event shall Pezli be liable for any indirect, incidental, special, consequential,
+or punitive damages, even if advised of the possibility of such damages. Liability
+shall not exceed USD $100 or the amount paid for the Software, whichever is greater.
+
+7. GOVERNING LAW
+This License is governed by the laws of the Republic of Kenya. Disputes shall be subject
+to the exclusive jurisdiction of the courts in Nairobi, Kenya.
+
+8. CONTACT
+For inquiries or permissions, contact:
+Pezli Inc.
+Email: kiprutobeauttah@gmail.com
+Address: 8qn-pezli-MUST
+
+------------------------------------------------------------
+NOTICE: Unauthorized use, modification, redistribution, or use of this Software for
+illegal purposes will result in immediate termination of this license and may lead
+to legal action.
+------------------------------------------------------------

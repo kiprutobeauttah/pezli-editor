@@ -1,0 +1,7 @@
+# Build artifacts
+src-tauri/target/
+src-tauri/gen/
+
+# OS / editor files
+.DS_Store
+*.swp
