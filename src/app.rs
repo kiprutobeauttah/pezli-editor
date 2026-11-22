@@ -2,7 +2,7 @@ use crate::editor::{char_to_line_col, Document};
 use crate::settings::Settings;
 use crate::theme::{builtin_themes, color_to_hex, hex_color, Theme};
 use eframe::egui;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -23,31 +23,59 @@ pub struct PezliApp {
     active: usize,
     settings: Settings,
     side_view: SideView,
+    settings_section: usize,
     panel_view: PanelView,
     find_text: String,
     replace_text: String,
     output: Vec<String>,
     cursor: (usize, usize),
     expanded: HashSet<String>,
+    icons: HashMap<String, egui::TextureHandle>,
     settings_dirty: bool,
     about_open: bool,
     editing_theme: Option<String>,
 }
 
 impl PezliApp {
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let settings = Settings::load();
+        let mut icons = HashMap::new();
+        let icon_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/icons");
+        if let Ok(entries) = std::fs::read_dir(icon_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|value| value.to_str()) != Some("png") {
+                    continue;
+                }
+                let Ok(bytes) = std::fs::read(&path) else { continue };
+                let Ok(decoded) = image::load_from_memory(&bytes) else { continue };
+                let decoded = decoded.to_rgba8();
+                let samples = decoded.as_flat_samples();
+                let image = egui::ColorImage::from_rgba_unmultiplied(
+                    [decoded.width() as usize, decoded.height() as usize],
+                    samples.as_slice(),
+                );
+                let name = path
+                    .file_stem()
+                    .map(|value| value.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let texture = cc.egui_ctx.load_texture(name.clone(), image, egui::TextureOptions::LINEAR);
+                icons.insert(name, texture);
+            }
+        }
         Self {
             docs: vec![Document::untitled("Untitled-1".to_string())],
             active: 0,
             settings,
             side_view: SideView::Explorer,
+            settings_section: 0,
             panel_view: PanelView::Problems,
             find_text: String::new(),
             replace_text: String::new(),
             output: vec!["Pezli Editor ready".to_string()],
             cursor: (1, 1),
             expanded: HashSet::new(),
+            icons,
             settings_dirty: false,
             about_open: false,
             editing_theme: None,
@@ -78,24 +106,85 @@ impl PezliApp {
 
     fn apply_style(&self, ctx: &egui::Context) {
         let theme = self.theme();
+        let chrome = hex_color(&theme.chrome);
+        let bg = hex_color(&theme.bg);
+        let text = hex_color(&theme.text);
+        let muted = hex_color(&theme.muted);
+        let accent = hex_color(&theme.accent);
+        let hover = hex_color(&theme.hover);
+
         let mut visuals = egui::Visuals::dark();
-        visuals.window_fill = hex_color(&theme.chrome);
-        visuals.panel_fill = hex_color(&theme.bg);
-        visuals.text_color = hex_color(&theme.text);
-        visuals.widgets.noninteractive.fg_stroke.color = hex_color(&theme.muted);
+        visuals.window_fill = chrome;
+        visuals.panel_fill = bg;
+        visuals.override_text_color = Some(text);
+        visuals.window_shadow.color = egui::Color32::from_black_alpha(90);
+        visuals.popup_shadow.color = egui::Color32::from_black_alpha(90);
+
+        let radius = egui::CornerRadius::same(5);
+        visuals.widgets.noninteractive.fg_stroke.color = muted;
+        visuals.widgets.noninteractive.bg_fill = chrome;
+        visuals.widgets.noninteractive.corner_radius = radius;
+
         visuals.widgets.inactive.fg_stroke.color = hex_color(&theme.chrome_text);
+        visuals.widgets.inactive.weak_bg_fill = egui::Color32::TRANSPARENT;
+        visuals.widgets.inactive.bg_fill = chrome;
+        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, hex_color(&theme.border));
+        visuals.widgets.inactive.corner_radius = radius;
+
         visuals.widgets.hovered.fg_stroke.color = hex_color(&theme.chrome_text);
-        visuals.widgets.active.fg_stroke.color = hex_color(&theme.chrome_text);
+        visuals.widgets.hovered.weak_bg_fill = hover;
+        visuals.widgets.hovered.bg_fill = hover;
+        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, hex_color(&theme.accent));
+        visuals.widgets.hovered.corner_radius = radius;
+
+        visuals.widgets.active.fg_stroke.color = egui::Color32::WHITE;
+        visuals.widgets.active.weak_bg_fill = accent;
+        visuals.widgets.active.bg_fill = accent;
+        visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, accent);
+        visuals.widgets.active.corner_radius = radius;
+
         visuals.selection.bg_fill = hex_color(&theme.selection);
-        visuals.selection.stroke.color = hex_color(&theme.accent);
-        visuals.hyperlink_color = hex_color(&theme.accent);
+        visuals.selection.stroke.color = accent;
+        visuals.hyperlink_color = accent;
+        visuals.faint_bg_color = hex_color(&theme.line_bg);
         ctx.set_visuals(visuals);
+
         let font_size = self.settings.font_size;
         ctx.all_styles_mut(|style| {
             for font in style.text_styles.values_mut() {
                 font.size = font_size;
             }
+            style.visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(5);
+            style.spacing.button_padding = egui::vec2(8.0, 4.0);
+            style.spacing.item_spacing = egui::vec2(8.0, 5.0);
         });
+    }
+
+    fn icon(&self, ui: &mut egui::Ui, name: &str, size: f32, color: egui::Color32) {
+        if let Some(texture) = self.icons.get(name) {
+            let tex_size = texture.size();
+            let sized = egui::load::SizedTexture::new(texture.id(), egui::vec2(tex_size[0] as f32, tex_size[1] as f32));
+            ui.add(
+                egui::Image::new(sized)
+                    .fit_to_exact_size(egui::vec2(size, size))
+                    .tint(color),
+            );
+        }
+    }
+
+    fn icon_button(&self, ui: &mut egui::Ui, name: &str, size: f32, color: egui::Color32) -> bool {
+        if let Some(texture) = self.icons.get(name) {
+            let tex_size = texture.size();
+            let sized = egui::load::SizedTexture::new(
+                texture.id(),
+                egui::vec2(tex_size[0] as f32, tex_size[1] as f32),
+            );
+            let image = egui::Image::new(sized)
+                .fit_to_exact_size(egui::vec2(size, size))
+                .tint(color);
+            return ui.add(egui::Button::image(image).frame(false)).clicked();
+        }
+        false
     }
 
     fn new_doc(&mut self) {
@@ -176,15 +265,22 @@ impl PezliApp {
     }
 
     fn ui_menu(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::top("menu_bar").show(ui, |ui| {
+        let theme = self.theme();
+        let chrome = hex_color(&theme.chrome);
+        let accent = hex_color(&theme.accent);
+        let muted = hex_color(&theme.muted);
+        let theme_name = theme.name.clone();
+        egui::Panel::top("menu_bar")
+            .frame(egui::Frame::new().fill(chrome).inner_margin(egui::Margin::symmetric(10, 5)))
+            .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.menu_button("File", |ui| {
-                    if ui.button("New File").clicked() { self.new_doc(); ui.close_menu(); }
-                    if ui.button("Open File...").clicked() { self.open_file(); ui.close_menu(); }
-                    if ui.button("Open Folder...").clicked() { self.open_folder(); ui.close_menu(); }
+                    if ui.button("New File").clicked() { self.new_doc(); }
+                    if ui.button("Open File...").clicked() { self.open_file(); }
+                    if ui.button("Open Folder...").clicked() { self.open_folder(); }
                     ui.separator();
-                    if ui.button("Save").clicked() { self.save_file(false); ui.close_menu(); }
-                    if ui.button("Save As...").clicked() { self.save_file(true); ui.close_menu(); }
+                    if ui.button("Save").clicked() { self.save_file(false); }
+                    if ui.button("Save As...").clicked() { self.save_file(true); }
                     ui.separator();
                     if ui.button("Exit").clicked() { ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close); }
                 });
@@ -193,9 +289,9 @@ impl PezliApp {
                         self.side_view = SideView::Search;
                         self.settings.side_visible = true;
                         self.settings_dirty = true;
-                        ui.close_menu();
+                       
                     }
-                    if ui.button("Replace All").clicked() { self.do_replace(); ui.close_menu(); }
+                    if ui.button("Replace All").clicked() { self.do_replace(); }
                 });
                 ui.menu_button("View", |ui| {
                     if ui.checkbox(&mut self.settings.side_visible, "Side Bar").clicked() { self.settings_dirty = true; }
@@ -206,31 +302,76 @@ impl PezliApp {
                         let index = themes.iter().position(|t| t.id == self.settings.theme_id).unwrap_or(0);
                         self.settings.theme_id = themes[(index + 1) % themes.len()].id.clone();
                         self.settings_dirty = true;
-                        ui.close_menu();
+                       
                     }
                     if ui.button("Settings").clicked() {
                         self.side_view = SideView::Settings;
                         self.settings.side_visible = true;
                         self.settings_dirty = true;
-                        ui.close_menu();
+                       
                     }
                 });
                 ui.menu_button("Help", |ui| {
                     if ui.button("Keyboard Shortcuts").clicked() {
                         self.log("Shortcuts: Ctrl+N new, Ctrl+O open, Ctrl+S save, Ctrl+Shift+S save as, Ctrl+F find");
-                        ui.close_menu();
+                       
                     }
-                    if ui.button("About").clicked() { self.about_open = true; ui.close_menu(); }
+                    if ui.button("About").clicked() { self.about_open = true; }
                 });
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(egui::RichText::new(self.theme().name).weak());
+                    ui.label(egui::RichText::new("BK").color(egui::Color32::WHITE).background_color(accent));
+                    ui.label(egui::RichText::new("Beauttah Kipruto").color(muted).size(11.0));
+                    ui.label(egui::RichText::new("|").color(muted));
+                    ui.label(egui::RichText::new(theme_name).color(accent));
+                    ui.label(egui::RichText::new("P").color(egui::Color32::WHITE).background_color(accent).size(16.0));
                 });
             });
         });
     }
 
+    fn ui_toolbar(&mut self, ui: &mut egui::Ui) {
+        let theme = self.theme();
+        let chrome = hex_color(&theme.chrome);
+        let border = hex_color(&theme.border);
+        let accent = hex_color(&theme.accent);
+        egui::Panel::top("toolbar")
+            .frame(egui::Frame::new().fill(chrome).inner_margin(egui::Margin::symmetric(12, 4)).stroke(egui::Stroke::new(1.0, border)))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if self.icon_button(ui, "file-plus", 18.0, accent) { self.new_doc(); }
+                    if self.icon_button(ui, "folder", 18.0, accent) { self.open_file(); }
+                    if self.icon_button(ui, "save", 18.0, accent) { self.save_file(false); }
+                    ui.separator();
+                    if self.icon_button(ui, "search", 18.0, accent) {
+                        self.side_view = SideView::Search;
+                        self.settings.side_visible = true;
+                        self.settings_dirty = true;
+                    }
+                    if self.icon_button(ui, "refresh-cw", 18.0, accent) { self.do_replace(); }
+                    ui.separator();
+                    if self.icon_button(ui, "droplet", 18.0, accent) {
+                        let themes = self.all_themes();
+                        let index = themes.iter().position(|t| t.id == self.settings.theme_id).unwrap_or(0);
+                        self.settings.theme_id = themes[(index + 1) % themes.len()].id.clone();
+                        self.settings_dirty = true;
+                    }
+                    if self.icon_button(ui, "settings", 18.0, accent) {
+                        self.side_view = SideView::Settings;
+                        self.settings.side_visible = true;
+                        self.settings_dirty = true;
+                    }
+                });
+            });
+    }
+
     fn ui_tabs(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::top("tabs_bar").show(ui, |ui| {
+        let chrome = hex_color(&self.theme().chrome);
+        let border = hex_color(&self.theme().border);
+        let accent = hex_color(&self.theme().accent);
+        let muted = hex_color(&self.theme().muted);
+        egui::Panel::top("tabs_bar")
+            .frame(egui::Frame::new().fill(chrome).inner_margin(egui::Margin::symmetric(8, 4)).stroke(egui::Stroke::new(1.0, border)))
+            .show(ui, |ui| {
             ui.horizontal(|ui| {
                 for index in 0..self.docs.len() {
                     let name = if self.docs[index].modified {
@@ -239,9 +380,12 @@ impl PezliApp {
                         self.docs[index].name.clone()
                     };
                     let selected = index == self.active;
-                    if ui.selectable_label(selected, name).clicked() {
-                        self.active = index;
-                    }
+                    ui.horizontal(|ui| {
+                        self.icon(ui, "file", 14.0, if selected { accent } else { muted });
+                        if ui.selectable_label(selected, name).clicked() {
+                            self.active = index;
+                        }
+                    });
                     if ui.small_button("×").clicked() && self.docs.len() > 1 {
                         self.docs.remove(index);
                         if self.active >= index && self.active > 0 {
@@ -279,14 +423,26 @@ impl PezliApp {
             egui::ScrollArea::vertical().show(ui, |ui| match app.side_view {
                 SideView::Explorer => app.ui_explorer(ui),
                 SideView::Search => app.ui_search(ui),
-                SideView::Settings => app.ui_settings(ui),
+                SideView::Settings => {
+                    let sections = ["General", "Editor", "Appearance", "Themes", "Workspace"];
+                    for (index, name) in sections.iter().enumerate() {
+                        if ui.selectable_label(app.settings_section == index, *name).clicked() {
+                            app.settings_section = index;
+                        }
+                    }
+                    ui.separator();
+                    ui.label(egui::RichText::new("Settings are shown in the editor area").weak());
+                }
             });
         };
 
+        let chrome = hex_color(&self.theme().chrome);
+        let border = hex_color(&self.theme().border);
+        let frame = || egui::Frame::new().fill(chrome).inner_margin(egui::Margin::symmetric(10, 8)).stroke(egui::Stroke::new(1.0, border));
         if side_right {
-            egui::Panel::right("side_panel").default_size(270.0).show(ui, |ui| build(ui, self));
+            egui::Panel::right("side_panel").default_size(270.0).frame(frame()).show(ui, |ui| build(ui, self));
         } else {
-            egui::Panel::left("side_panel").default_size(270.0).show(ui, |ui| build(ui, self));
+            egui::Panel::left("side_panel").default_size(270.0).frame(frame()).show(ui, |ui| build(ui, self));
         }
     }
 
@@ -336,20 +492,21 @@ impl PezliApp {
         let is_dir = pathbuf.is_dir();
         let expanded = self.expanded.contains(path);
         let indent = (depth * 14) as f32;
+        let accent = hex_color(&self.theme().accent);
         ui.horizontal(|ui| {
             ui.add_space(indent);
             if is_dir {
-                if ui.button(if expanded { "▾" } else { "▸" }).clicked() {
+                if self.icon_button(ui, if expanded { "chevron-down" } else { "chevron-right" }, 12.0, accent) {
                     if expanded {
                         self.expanded.remove(path);
                     } else {
                         self.expanded.insert(path.to_string());
                     }
                 }
-                ui.label("📁");
+                self.icon(ui, "folder", 14.0, accent);
             } else {
-                ui.add_space(14.0);
-                ui.label("📄");
+                ui.add_space(16.0);
+                self.icon(ui, "file", 14.0, accent);
             }
             if ui.button(name).clicked() {
                 if is_dir {
@@ -374,7 +531,11 @@ impl PezliApp {
     }
 
     fn ui_search(&mut self, ui: &mut egui::Ui) {
-        ui.label("Find");
+        let accent = hex_color(&self.theme().accent);
+        ui.horizontal(|ui| {
+            self.icon(ui, "search", 15.0, accent);
+            ui.heading("Find & Replace");
+        });
         ui.text_edit_singleline(&mut self.find_text);
         ui.label("Replace");
         ui.text_edit_singleline(&mut self.replace_text);
@@ -398,7 +559,11 @@ impl PezliApp {
     }
 
     fn ui_settings(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Settings");
+        let accent = hex_color(&self.theme().accent);
+        ui.horizontal(|ui| {
+            self.icon(ui, "settings", 16.0, accent);
+            ui.heading("Settings");
+        });
         ui.separator();
         ui.label("Color theme");
         let themes = self.all_themes();
@@ -528,6 +693,9 @@ impl PezliApp {
         if !self.settings.panel_visible {
             return;
         }
+        let chrome = hex_color(&self.theme().chrome);
+        let border = hex_color(&self.theme().border);
+        let frame = || egui::Frame::new().fill(chrome).inner_margin(egui::Margin::symmetric(10, 6)).stroke(egui::Stroke::new(1.0, border));
         let build = |ui: &mut egui::Ui, app: &mut Self| {
             ui.horizontal(|ui| {
                 if ui.selectable_label(app.panel_view == PanelView::Problems, "Problems").clicked() {
@@ -560,13 +728,13 @@ impl PezliApp {
         };
         match self.settings.panel_position.as_str() {
             "right" => {
-                egui::Panel::right("panel_right").default_size(280.0).show(ui, |ui| build(ui, self));
+                egui::Panel::right("panel_right").default_size(280.0).frame(frame()).show(ui, |ui| build(ui, self));
             }
             "left" => {
-                egui::Panel::left("panel_left").default_size(280.0).show(ui, |ui| build(ui, self));
+                egui::Panel::left("panel_left").default_size(280.0).frame(frame()).show(ui, |ui| build(ui, self));
             }
             _ => {
-                egui::Panel::bottom("panel_bottom").default_size(180.0).show(ui, |ui| build(ui, self));
+                egui::Panel::bottom("panel_bottom").default_size(180.0).frame(frame()).show(ui, |ui| build(ui, self));
             }
         }
     }
@@ -576,6 +744,7 @@ impl PezliApp {
         let font_size = self.settings.font_size;
         let mut new_cursor = None;
         let mut changed = false;
+        let bg = hex_color(&self.theme().bg);
 
         {
             let doc = &mut self.docs[self.active];
@@ -597,7 +766,7 @@ impl PezliApp {
                     }
                     let output = egui::TextEdit::multiline(&mut doc.content)
                         .code_editor()
-                        .frame(egui::Frame::NONE)
+                        .frame(egui::Frame::new().fill(bg).inner_margin(egui::Margin::symmetric(10, 8)))
                         .desired_width(f32::INFINITY)
                         .show(ui);
                     changed = output.response.changed();
@@ -617,19 +786,25 @@ impl PezliApp {
     }
 
     fn ui_status(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::bottom("status_bar").show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(format!("Ln {}, Col {}", self.cursor.0, self.cursor.1));
-                ui.separator();
-                let doc = &self.docs[self.active];
-                ui.label(if doc.modified { "Modified" } else { "Saved" });
-                ui.separator();
-                ui.label(format!("Spaces: {}", self.settings.tab_size));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(self.theme().name);
+        let accent = hex_color(&self.theme().accent);
+        let white = |text: String| egui::RichText::new(text).color(egui::Color32::WHITE).size(12.0);
+        let theme_name = self.theme().name;
+        let tab_size = self.settings.tab_size;
+        egui::Panel::bottom("status_bar")
+            .frame(egui::Frame::new().fill(accent).inner_margin(egui::Margin::symmetric(10, 4)))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(white(format!("Ln {}, Col {}", self.cursor.0, self.cursor.1)));
+                    ui.label(white("|".to_string()));
+                    let modified = self.docs[self.active].modified;
+                    ui.label(white(if modified { "Modified" } else { "Saved" }.to_string()));
+                    ui.label(white("|".to_string()));
+                    ui.label(white(format!("Spaces: {}", tab_size)));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.label(white(theme_name));
+                    });
                 });
             });
-        });
     }
 
     fn shortcuts(&mut self, ctx: &egui::Context) {
@@ -668,19 +843,30 @@ impl PezliApp {
 
 impl eframe::App for PezliApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        let ctx = ui.ctx();
-        self.apply_style(ctx);
-        self.shortcuts(ctx);
+        let ctx = ui.ctx().clone();
+        self.apply_style(&ctx);
+        self.shortcuts(&ctx);
         self.ui_menu(ui);
+        self.ui_toolbar(ui);
         self.ui_tabs(ui);
         self.ui_side(ui);
         self.ui_panel(ui);
         self.ui_status(ui);
-        egui::CentralPanel::no_frame().show(ui, |ui| self.ui_center(ui));
+        egui::CentralPanel::default().show(ui, |ui| {
+            if self.side_view == SideView::Settings {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.set_max_width(820.0);
+                    ui.add_space(12.0);
+                    self.ui_settings(ui);
+                });
+            } else {
+                self.ui_center(ui);
+            }
+        });
 
         if self.about_open {
             let mut open = self.about_open;
-            egui::Window::new("About Pezli Editor").open(&mut open).resizable(false).show(ctx, |ui| {
+            egui::Window::new("About Pezli Editor").open(&mut open).resizable(false).show(&ctx, |ui| {
                 ui.heading("Pezli Editor v1.0.0");
                 ui.label("A native desktop text editor built with Rust and egui.");
                 ui.label("Features: themes, settings, folders, find and replace, rearrangeable workspace.");

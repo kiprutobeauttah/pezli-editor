@@ -22,7 +22,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            theme_id: "light".to_string(),
+            theme_id: "dark+".to_string(),
             font_size: 14.0,
             tab_size: 4,
             insert_spaces: true,
