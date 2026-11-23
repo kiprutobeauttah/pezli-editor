@@ -17,12 +17,6 @@ pub struct Theme {
     pub muted: String,
 }
 
-impl Theme {
-    pub fn color(&self, hex: &str) -> Color32 {
-        hex_color(hex)
-    }
-}
-
 pub fn hex_color(hex: &str) -> Color32 {
     let h = hex.trim_start_matches('#');
     if h.len() < 6 {
@@ -36,6 +30,35 @@ pub fn hex_color(hex: &str) -> Color32 {
 
 pub fn color_to_hex(color: Color32) -> String {
     format!("#{:02x}{:02x}{:02x}", color.r(), color.g(), color.b())
+}
+
+pub fn blend_hex(a: &str, b: &str, t: f32) -> String {
+    let ca = hex_color(a);
+    let cb = hex_color(b);
+    let mix = |x: u8, y: u8| -> u8 { (x as f32 + (y as f32 - x as f32) * t).round() as u8 };
+    color_to_hex(Color32::from_rgb(
+        mix(ca.r(), cb.r()),
+        mix(ca.g(), cb.g()),
+        mix(ca.b(), cb.b()),
+    ))
+}
+
+pub fn blend_themes(a: &Theme, b: &Theme, t: f32) -> Theme {
+    let mix = |x: &str, y: &str| blend_hex(x, y, t);
+    Theme {
+        id: b.id.clone(),
+        name: b.name.clone(),
+        bg: mix(&a.bg, &b.bg),
+        text: mix(&a.text, &b.text),
+        chrome: mix(&a.chrome, &b.chrome),
+        chrome_text: mix(&a.chrome_text, &b.chrome_text),
+        border: mix(&a.border, &b.border),
+        hover: mix(&a.hover, &b.hover),
+        accent: mix(&a.accent, &b.accent),
+        selection: mix(&a.selection, &b.selection),
+        line_bg: mix(&a.line_bg, &b.line_bg),
+        muted: mix(&a.muted, &b.muted),
+    }
 }
 
 pub fn builtin_themes() -> Vec<Theme> {
@@ -52,6 +75,7 @@ pub fn builtin_themes() -> Vec<Theme> {
         ("one-dark", "One Dark", "#282c34", "#abb2bf", "#21252b", "#abb2bf", "#3b4048", "#2c323c", "#61afef", "#3e4451", "#2d323b", "#7f8490"),
         ("gruvbox", "Gruvbox Dark", "#282828", "#ebdbb2", "#1d2021", "#ebdbb2", "#3c3836", "#32302f", "#fe8019", "#45475a", "#32302f", "#a89984"),
         ("high-contrast", "High Contrast", "#000000", "#ffffff", "#000000", "#ffffff", "#777777", "#333333", "#00ff00", "#0000aa", "#1a1a1a", "#cccccc"),
+        ("auto", "Auto (system)", "#1e1e1e", "#d4d4d4", "#252526", "#cccccc", "#3c3c3c", "#2a2d2e", "#007acc", "#264f78", "#282828", "#858585"),
     ];
     entries
         .iter()
